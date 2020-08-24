@@ -13,39 +13,20 @@ const blankAuth: AuthData = new AuthData({
     vault_access_token: ''
 })
 
-const blankMedInfo: state.MedicalInformation = {
-  conditions: [],
-  medications: [],
-  doctorContact: {
-    kind: 'doctor',
-    name: "",
-    address: {
-      line1:"",
-      postcode: "",
-      city: "",
-      country: "",
-    }
-  },
-  personalContact: {
-    kind: 'personal',
-    name: "",
-    relationship: ""
-  }
-}
 
 describe('State modifications', () => {
     it('Edit doctor name', () => {
-      let initial = state.initialLoggedInState(blankAuth, blankMedInfo)
+      let initial = state.initialLoggedInState(blankAuth, state.blankMedInfo)
       let updated = ol(state.rootDoctorContactO, state.contactNameL).setOptional(initial, "Tin");
       expect((updated as state.LoggedIn).medical.doctorContact.name).equal("Tin")
     });
     it('Edit editing doctor name', () => {
-        let initial = state.initialLoggedInState(blankAuth, blankMedInfo)
+        let initial = state.initialLoggedInState(blankAuth, state.blankMedInfo)
         let updated = modOptional(state.rootEditingDoctorO, initial, (b) => !b)
         expect((updated as state.LoggedIn).medical.editingDoctor).equal(true);
       });
     it('Edit contact relationship', () => {
-        let initial = state.initialLoggedInState(blankAuth, blankMedInfo)
+        let initial = state.initialLoggedInState(blankAuth, state.blankMedInfo)
         let updated = ol(state.rootPersonalContactO, state.personalRelationshipL).setOptional(initial, "Wife")
         expect((updated as state.LoggedIn).medical.personalContact.relationship).equal("Wife");
       });

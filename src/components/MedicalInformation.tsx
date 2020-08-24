@@ -1,6 +1,7 @@
 import React from 'react';
 import * as state from '../state';
 import { EditableStringList } from './EditableStringList';
+import { AddressEditor } from './AddressEditor';
 
 type MedicalInformationProps = {
     info: state.MedicalInformation,
@@ -35,7 +36,11 @@ const ContactInformation = (p: ContactInformationProps) => <div className="card"
                 p.contact.name}</h5>
             <p>
                 {p.contact.kind == 'doctor' ? 
-                state.singleLineAddress(p.contact.address) : 
+                    (p.editing ? 
+                        <AddressEditor address={p.contact.address} 
+                        onEdit = {(addr) => p.onEditContact(state.contactAddressO.setOptional(p.contact, addr))}/> 
+                        :  
+                        state.singleLineAddress(p.contact.address)) : 
                 p.editing ? 
                 <input type="text" value={p.contact.relationship} onChange={(e) => { p.onEditContact(state.contactRelationshipO.setOptional(p.contact, e.target.value))}}/> 
                 :  

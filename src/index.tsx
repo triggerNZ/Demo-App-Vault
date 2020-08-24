@@ -43,6 +43,7 @@ let initialAuthData = null; // JSON.parse(window.localStorage.getItem('savedAuth
 
 
 ReactDOM.render(<App 
+  date={new Date()}
   env={environment} 
   savedAuthData={initialAuthData ? initialAuthData as AuthData : undefined} />, 
   document.getElementById("app"));

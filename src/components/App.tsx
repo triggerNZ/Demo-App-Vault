@@ -5,11 +5,13 @@ import { modLens, modOptional } from '../lens';
 import { ItemService, Environment, AuthData, UserService, vaultAPIFactory } from "@meeco/sdk";
 import { Login } from './Login';
 import * as meeco from '../meeco'
+import { Tabs } from './Tabs';
+import { FeelingToday } from './FeelingToday';
 
-export class App extends Component<{env: Environment, savedAuthData? : AuthData}, state.AppState> {
+export class App extends Component<{env: Environment, savedAuthData? : AuthData, date: Date}, state.AppState> {
     private env: Environment;
     
-    constructor(props: {env: Environment, savedAuthData? : AuthData}) {
+    constructor(props: {env: Environment, savedAuthData? : AuthData, date: Date}) {
         super(props);
         this.env = props.env;
         console.log('App loaded');
@@ -17,20 +19,28 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
             this.state = state.notLoggedInState(false);
         } else {
             this.state = state.loadingDataState(props.savedAuthData);
-            this.loadData(props.savedAuthData);
+            this.loadMedical(props.savedAuthData);
         }
         
     }
 
     render() {
+        
         switch(this.state.kind) {
-            case "logged-in":
-                let medical = this.state.medical;
-                let auth = this.state.authData;
-                return <div>
+            case "logged-in": {
+                let loggedIn: state.LoggedIn = this.state;
+                let medical = loggedIn.medical;
+                let auth = loggedIn.authData;
+                
+                let tabs = <Tabs currentTab={loggedIn.currentTab} onChange={(newTab) => this.setState({...this.state, currentTab: newTab}) }></Tabs>;
+                
+                let mainScreen: JSX.Element;
+
+                if (loggedIn.currentTab === state.CurrentTab.Medical) {
+                    mainScreen = <div>
                         <MedicalInformation 
                             info={medical} 
-                            onDoctorContactEdit={ (s) => this.modState(st => state.rootDoctorContactO.setOptional(st, s)) } 
+                            onDoctorContactEdit={(s) => this.modState(st => state.rootDoctorContactO.setOptional(st, s)) } 
                             editingDoctor={medical.editingDoctor}
                             toggleEditingDoctor={() => this.modState(st => modOptional(state.rootEditingDoctorO, st, b => !b)) }
                             
@@ -47,8 +57,24 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
                             toggleEditingConditions={() => this.modState(st => modOptional(state.rootEditingConditionsO, st, b => !b)) }
                             
                             />
-                            <button className="primary large" onClick={() => this.persistState(auth, medical)}>Save</button>
-                            </div>
+                            <button className="primary large" onClick={() => this.persistMedical(auth, medical)}>Save</button>
+                           
+                    </div>
+                } else if (this.state.currentTab == state.CurrentTab.FeelingToday) {
+                    mainScreen = 
+                        <FeelingToday 
+                            selected={this.state.currentFeeling}
+                            currentDate={this.props.date}
+                            onChange={(f) => this.setState({...this.state, currentFeeling: f})}
+                            onSave={() => {
+                                this.saveFeelingToLog(loggedIn);
+                                this.persistDiary(auth, loggedIn.covidDiary);
+                            }}
+                    />
+                }
+
+                return <div>{tabs}{mainScreen}</div>
+            }
         
             case "logging-in":
                 return <div>
@@ -75,13 +101,29 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
         }
     }
 
-    async persistState(auth: AuthData, med: state.MedicalInformationState): Promise<void> {
+    saveFeelingToLog(lis: state.LoggedIn) {
+        const curDiary = lis.covidDiary;
+        let updatedDiary: state.CovidDiary;
+
+        if (lis.currentFeeling === undefined) {
+            updatedDiary = curDiary;
+        } else {
+            updatedDiary = [...curDiary, {date: this.props.date, feeling: lis.currentFeeling}]
+        }
+        this.setState({...lis, covidDiary: updatedDiary, currentFeeling: undefined})
+    }
+
+    async persistDiary(auth: AuthData, diary: state.CovidDiary): Promise<void> {
+
+    }
+
+    async persistMedical(auth: AuthData, med: state.MedicalInformationState): Promise<void> {
         let vaf = vaultAPIFactory(this.env)(auth)
         const itemApi = vaf.ItemApi;
         const templateApi = vaf.ItemTemplateApi;
         const itemService = new ItemService(this.env, logger);
         let templates = await templateApi.itemTemplatesGet();
-        let existingTemplate = templates.item_templates.filter(t => t.name === meeco.TEMPLATE_NAME);
+        let existingTemplate = templates.item_templates.filter(t => t.name === meeco.MEDICAL_TEMPLATE_NAME);
         let healthInfoTemplate = existingTemplate[0]
 
         if (!healthInfoTemplate) {
@@ -112,31 +154,32 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
             console.log("Got user", authData);
             window.localStorage.setItem('savedAuth', JSON.stringify(authData));
             this.setState(state.loadingDataState(authData));
-            await this.loadData(authData);
+            await this.loadMedical(authData);
         } catch (error) {
             this.setState(state.notLoggedInState(true));
         }
     }
 
-    async loadData(authData: AuthData): Promise<void> {
+    async loadMedical(authData: AuthData): Promise<void> {
         const itemService = new ItemService(this.env, logger);
         let allItems = await  itemService.list(authData.vault_access_token);
         console.log('allItems', allItems);
         let latestItem = 
             maxBy(
                 allItems.items.
-                    filter(it => it.name === "health_information"),
-                it => it.created_at.toISOString()    
+                    filter(it => it.label === meeco.MEDICAL_ITEM_NAME),
+                it => it.created_at.toISOString()
             )
-        console.log(latestItem);
-        
-        let actualItem = await itemService.get(latestItem.id, authData.vault_access_token, authData.data_encryption_key)
+        console.log('LatestItem', latestItem);
 
-        console.log(actualItem);
-
-        const medInfo = meeco.loadMedicalInfo(actualItem.slots)
-
-        this.setState(state.initialLoggedInState(authData, medInfo));
+        if (latestItem) {
+            let actualItem = await itemService.get(latestItem.id, authData.vault_access_token, authData.data_encryption_key)
+            console.log('Actual Item', actualItem);
+            const medInfo = meeco.loadMedicalInfo(actualItem.slots)
+            this.setState(state.initialLoggedInState(authData, medInfo));
+        } else {
+            this.setState(state.initialLoggedInState(authData, undefined));
+        }
     }
 }
 

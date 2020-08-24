@@ -10,11 +10,26 @@ export interface NotLoggedIn {
     lastLoginFailed: boolean;
 }
 
+export enum CurrentFeeling {
+    Fine, BitSick, VerySick
+}
+
+export enum CurrentTab {
+    Medical,
+    FeelingToday,
+}
+
 export interface LoggedIn {
     kind: "logged-in";
     medical: MedicalInformationState;
-    authData: AuthData
+    authData: AuthData,
+    currentTab: CurrentTab,
+    currentFeeling?: CurrentFeeling,
+    covidDiary: CovidDiary
 };
+
+export type CovidDiary = 
+    {date: Date, feeling: CurrentFeeling}[];
 
 export interface LoggingIn {
     kind: "logging-in";
@@ -58,6 +73,25 @@ export interface PersonalContact {
     relationship: string;
 }
 
+export const contactAddressO: Optional<Contact, Address> = {
+    get: (c) => {
+        switch(c.kind) {
+            case 'doctor': 
+                return c.address;
+            case 'personal':
+                return undefined;
+        }
+    },
+    setOptional: (c, a) => {
+        switch(c.kind) {
+            case 'doctor': 
+                return {...c, address: a}
+            case 'personal':
+                return c;
+        }
+    }
+}
+
 export interface Address {
     line1: string,
     line2?: string,
@@ -68,6 +102,31 @@ export interface Address {
 
 export function singleLineAddress(a: Address) {
     return a.line1 + ", " + (a.line2 ? (a.line2 + ", ") : "") + a.postcode + ", " + a.city + ", " + a.country;
+}
+
+export const addressLine1L: Lens<Address, string> = {
+    get: (a) => a.line1,
+    set: (a, s) => ({...a, line1: s})
+}
+
+export const addressLine2L: Lens<Address, string | undefined> = {
+    get: (a) => a.line2,
+    set: (a, s) => ({...a, line2: s})
+}
+
+export const addressPostcodeL: Lens<Address, string> = {
+    get: (a) => a.postcode,
+    set: (a, s) => ({...a, postcode: s})
+}
+
+export const addressCityL: Lens<Address, string> = {
+    get: (a) => a.city,
+    set: (a, s) => ({...a, city: s})
+}
+
+export const addressCountryL: Lens<Address, string> = {
+    get: (a) => a.country,
+    set: (a, s) => ({...a, country: s})
 }
 
 export let stateDoctorContactL: Lens<MedicalInformationState, DoctorContact> = {
@@ -190,16 +249,38 @@ export function loadingDataState(auth: AuthData): LoadingData {
     }
 }
 
-export function initialLoggedInState(authData: AuthData, medical: MedicalInformation): LoggedIn {
+export function initialLoggedInState(authData: AuthData, med: MedicalInformation | undefined): LoggedIn {
     return {
         kind: 'logged-in',
         authData,
         medical: {
-            ...medical, 
+            ...(med || blankMedInfo), 
             kind: 'medical-info',
             editingConditions: false, 
             editingDoctor: false, 
             editingMedications: false, 
-            editingPersonal: false}
+            editingPersonal: false},
+        currentTab: CurrentTab.Medical,
+        covidDiary: []
     };
 }
+
+export const blankMedInfo: MedicalInformation = {
+    conditions: [],
+    medications: [],
+    doctorContact: {
+      kind: 'doctor',
+      name: "",
+      address: {
+        line1:"",
+        postcode: "",
+        city: "",
+        country: "",
+      }
+    },
+    personalContact: {
+      kind: 'personal',
+      name: "",
+      relationship: ""
+    }
+  }
