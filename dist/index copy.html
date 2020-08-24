@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+  <head>
+    <title>index</title>
+    <link rel="icon" type="image/x-icon" href="./assets/favicon.ico" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/node_modules/@meeco/style-kit/dist/main.css">
+    <script src="https://kit.fontawesome.com/4eb9ec9187.js" crossorigin="anonymous"></script>
+  </head>
+
+  <body>
+    <div class="container">
+
+      <div class="sidebar" id="sidebar">
+        
+        <div id="header">
+          <h1>Digital Twin</h1>
+          <p class="medium">Save, store & share your personal data</p>
+        </div>
+        
+        <div class="content">
+          
+          <div id="loading"></div>
+          
+          <div id="login">
+            <div id="login-input-fields">
+              <label for="password">Password</label>
+              <input name="password" id="login-password" type="text"/>
+              <label for="secret">Secret</label>
+              <input name="secret" id="login-secret" type="text"/>
+            </div>
+              <button id="getAccount" class="primary large">Login to account</button>
+           
+            <button class="text large" id="createAccount">Create new account</button>
+          </div>
+
+          <div id="signup">
+            <p>To create an account set a<br/> <b>Master Password</b></p><br/>
+            <input type="password" name="passphrase" autocomplete="off"
+            id="passphrase" placeholder="Master Password" required/>
+            <button class="primary large" id="generate">Generate Secret</button>
+          </div>
+
+          <div id="welcome">
+            <p class="large">Welcome!</p>
+            <p class="medium">Below is your secret.</p>
+            <p class="medium">Write it down, or save it as you will need it to login again</p><br/>
+            <p class="large">Generated Secret:</p>
+            <textarea id="secret-block"></textarea>
+            <button class="primary large" id="new-user-login">Saved!</button>
+          </div>
+
+          <div id="navbar">
+            <ul>
+              <li><b>Vault</b></li>
+              <li>Notifications</li>
+              <li>Contacts</li>
+              <li>Settings</li>
+            </ul>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="dashboard" id="dashboard">
+        <div class="toolbar">
+          <h3>Vault</h3>
+          <button class="icon-only" id="addItem"><i>add</i></button>
+        </div>
+
+        <div id="item-list">
+          <h2>My items</h2>
+          <div class="card-list">
+          </div>
+        </div>
+        
+      </div>
+
+      <div class="active">
+  
+        <div id="item-templates">
+          <h2>Select a template</h2>
+          <div id="template"></div>
+        </div>
+
+        <div id="item-show">
+          <div class="card no-shadow">
+            <div class="content">
+              <p class="card-label" id="item-heading"></p>
+            </div>
+            <div class="footer" id="tag-container"></div>
+          </div>
+          <div id="item-detail"></div>
+          <button class="icon-only" id="delete"><i>delete</i></button>
+        </div>
+
+        <div id="item-form-container">
+          <h2>Create an item</h2>
+            <div id="form-space">
+              <form id="item-form"></form>
+            </div>
+            <button class="primary large" id="createCard">Create Item</button>
+        </div>
+
+      </div>
+    </div>
+  </body>
+</html>

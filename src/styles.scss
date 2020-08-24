@@ -151,11 +151,22 @@ body {
     }
   }
 
-  .active,
+  // .active,
   #dashboard,
   #item-templates,
   #itemShow,
   #itemForm {
     display: none;
   }
+
+  .red-shade {
+      background-color: #b81831;
+      color: #fcfcfc
+  }
+
+  ul {
+    display: block;
+  }
 }
+
+
