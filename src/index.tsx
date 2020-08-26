@@ -13,15 +13,6 @@ import "./styles.scss";
 
 configureFetch(window.fetch);
 
-// _.$("createAccount").addEventListener("click", () => {
-//   hideElement(_.login);
-//   showElement(_.signup);
-// });
-// _.$("generate").addEventListener("click", userFactory.getUsername);
-// _.$("new-user-login").addEventListener("click", itemFactory.getAllItems);
-// _.$("getAccount").addEventListener("click", userFactory.fetchUserData);
-// _.$("addItem").addEventListener("click", templateFactory.getTemplates);
-// _.$("createCard").addEventListener("click", itemFactory.createItem);
 import React    from 'react';
 import ReactDOM from 'react-dom';
 
@@ -39,11 +30,10 @@ let environment = new Environment({
     },
   });
 
-let initialAuthData = null; // JSON.parse(window.localStorage.getItem('savedAuth'));
+let initialAuthData = undefined; // JSON.parse(window.localStorage.getItem('savedAuth'));
 
 
-ReactDOM.render(<App 
-  date={new Date()}
+ReactDOM.render(<App
   env={environment} 
-  savedAuthData={initialAuthData ? initialAuthData as AuthData : undefined} />, 
+  savedAuthData={initialAuthData ? new AuthData(initialAuthData) : undefined} />, 
   document.getElementById("app"));

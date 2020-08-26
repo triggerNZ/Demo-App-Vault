@@ -17,6 +17,8 @@ export enum CurrentFeeling {
 export enum CurrentTab {
     Medical,
     FeelingToday,
+    CovidDiary,
+    Sharing
 }
 
 export interface LoggedIn {
@@ -198,11 +200,11 @@ export let editingConditionsL: Lens<MedicalInformationState, boolean> = {
     set: (s, ed) => ({...s, editingConditions: ed})
 }
 
-export let rootMedicalO: Optional<AppState, MedicalInformationState> = {
+export let rootLoggedInO: Optional<AppState, LoggedIn> = {
     get: (s) => {
         switch (s.kind) {
             case "logged-in":
-                return s.medical;
+                return s;
             case "not-logged-in":
                 return undefined;    
         }
@@ -211,12 +213,31 @@ export let rootMedicalO: Optional<AppState, MedicalInformationState> = {
     setOptional: (s, m) => {
         switch (s.kind) {
             case "logged-in":
-                return {...s, medical: m}
+                return m
             case "not-logged-in":
                 return s    
         }
     }
 }
+
+export let loggedInMedicalL: Lens<LoggedIn, MedicalInformationState> = {
+    get: (s) => s.medical,
+    set: (s, m) => ({...s, medical: m})
+}
+
+export let loggedInCurrentTab: Lens<LoggedIn, CurrentTab> = {
+    get: (s) => s.currentTab,
+    set: (s, t) => ({...s, currentTab: t})
+}
+
+export let loggedInCurrentFeeling: Lens<LoggedIn, CurrentFeeling> = {
+    get: (s) => s.currentFeeling,
+    set: (s, f) => ({...s, currentFeeling: f})
+}
+
+export let rootMedicalO = ol(rootLoggedInO, loggedInMedicalL)
+export let rootCurrentTabO = ol(rootLoggedInO, loggedInCurrentTab)
+export let rootCurrentFeelingO = ol(rootLoggedInO, loggedInCurrentFeeling)
 
 export let rootEditingConditionsO = ol(rootMedicalO, editingConditionsL)
 export let rootEditingMedicationsO = ol(rootMedicalO, editingMedicationsL)
@@ -249,7 +270,7 @@ export function loadingDataState(auth: AuthData): LoadingData {
     }
 }
 
-export function initialLoggedInState(authData: AuthData, med: MedicalInformation | undefined): LoggedIn {
+export function initialLoggedInState(authData: AuthData, med: MedicalInformation | undefined, diary: CovidDiary | undefined): LoggedIn {
     return {
         kind: 'logged-in',
         authData,
@@ -261,7 +282,7 @@ export function initialLoggedInState(authData: AuthData, med: MedicalInformation
             editingMedications: false, 
             editingPersonal: false},
         currentTab: CurrentTab.Medical,
-        covidDiary: []
+        covidDiary: diary || []
     };
 }
 

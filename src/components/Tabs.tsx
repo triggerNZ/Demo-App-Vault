@@ -15,5 +15,11 @@ export const Tabs = (p: TabsProps) => <div className="tabs">
                                     Medical</span> 
                             <span className={classNames('tab', {selected: p.currentTab == state.CurrentTab.FeelingToday})} 
                                 onClick={(e) => p.onChange(state.CurrentTab.FeelingToday)}>
-                                Health Check</span> 
+                                Health Check</span>
+                            <span className={classNames('tab', {selected: p.currentTab == state.CurrentTab.CovidDiary})} 
+                                onClick={(e) => p.onChange(state.CurrentTab.CovidDiary)}>
+                                Covid Diary</span>   
+                            <span className={classNames('tab', {selected: p.currentTab == state.CurrentTab.Sharing})} 
+                                onClick={(e) => p.onChange(state.CurrentTab.Sharing)}>
+                                Share</span>
                         </div>

@@ -2,13 +2,15 @@ import * as state from './state'
 import { ItemCreateData, ItemSlot } from '@meeco/sdk'
 import { NestedSlotAttributes } from "@meeco/vault-api-sdk"
 
-export const MEDICAL_TEMPLATE_NAME = "health_info_5"
+export const MEDICAL_TEMPLATE_NAME = "health_info_6"
 export const MEDICAL_ITEM_NAME = MEDICAL_TEMPLATE_NAME;
+export const DIARY_TEMPLATE_NAME = "covid_diary_1"
+export const DIARY_ITEM_NAME = DIARY_TEMPLATE_NAME;
 
-export const ARRAY_SIZE = 10;
+export const ARRAY_SIZE = 30;
 
-export const template = {
-    name: MEDICAL_ITEM_NAME,
+export const medicalTemplate = {
+    name: MEDICAL_TEMPLATE_NAME,
     label: "Health Info",
 
     slots_attributes: [
@@ -48,6 +50,29 @@ export const template = {
       ...(arraySlotTemplate(ARRAY_SIZE, "medications", "note_text")),
     ]
   }
+
+export const diaryTemplate = {
+  name: DIARY_TEMPLATE_NAME,
+  label: "Covid Diary",
+  slots_attributes: [
+    ...(arraySlotTemplate(ARRAY_SIZE, "date", "date")),
+    ...(arraySlotTemplate(ARRAY_SIZE, "feeling", "note_text"))
+  ]
+}
+
+export function createDiary(templateName: string, diary: state.CovidDiary): ItemCreateData {
+  return {
+    template_name: templateName,
+    slots: [
+      ...(createArray("date", diary.map(e => e.date.toDateString()))),
+      ...(createArray("feeling", diary.map(e => e.feeling.toString()))),
+    ],
+    item: {
+      label: DIARY_TEMPLATE_NAME
+    }
+  }
+  
+}
 
 export function createMedicalInfo(templateName: string, med: state.MedicalInformation): ItemCreateData {
   return  {
@@ -155,4 +180,15 @@ export function loadMedicalInfo(slots: NestedSlotAttributes[]): state.MedicalInf
     medications: loadArray("medications", slots) as state.Medication[],
     }
   } 
+
+export function loadDiary(slots: NestedSlotAttributes[]): state.CovidDiary {
+  let datesStrings = loadArray("date", slots)
+  let feelingsStrings = loadArray("feeling", slots)
+
+  let dates = datesStrings.map(s => new Date(Date.parse(s)))
+  let feelings = feelingsStrings.map(s => parseInt(s)) as state.CurrentFeeling[]
+
+  let combined = dates.map((date, idx) => ({date, feeling: feelings[idx]}))
+  return combined
+}  
   
