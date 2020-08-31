@@ -1,15 +1,16 @@
 import React, {Component} from 'react'; // we need this to make JSX compile
 import * as state from '../state'
 import { MedicalInformation } from './MedicalInformation';
-import { modOptional } from '../lens';
-import { ItemService, Environment, AuthData, UserService, vaultAPIFactory } from "@meeco/sdk";
+import { modOptional, Optional, ol } from '../lens';
+import { ItemService, Environment, AuthData, UserService, vaultAPIFactory, ShareService, ConnectionService } from "@meeco/sdk";
 import { Login } from './Login';
 import * as meeco from '../meeco'
 import { Tabs } from './Tabs';
 import { FeelingToday } from './FeelingToday';
 import { CovidDiary } from './CovidDiary';
-import {PostFastItemTemplateRequest, ItemTemplateWithoutAssociations, Item} from '@meeco/vault-api-sdk'
-import { Share } from './Share';
+import {PostFastItemTemplateRequest, ItemTemplateWithoutAssociations, Item, Share, MeResponse} from '@meeco/vault-api-sdk'
+import { Invite } from './Invite';
+import { Sharing } from './Sharing';
 
 export class App extends Component<{env: Environment, savedAuthData? : AuthData}, state.AppState> {
     private env: Environment;
@@ -41,7 +42,11 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
                     case state.CurrentTab.Medical:
                         mainScreen = <div>
                         <MedicalInformation 
+                            editable={true}
                             info={medical} 
+                            editingName={medical.editingName}
+                            onNameEdit = {(s) => this.modState(st => state.rootNameO.setOptional(st, s))}
+
                             onDoctorContactEdit={(s) => this.modState(st => state.rootDoctorContactO.setOptional(st, s)) } 
                             editingDoctor={medical.editingDoctor}
                             toggleEditingDoctor={() => this.modState(st => modOptional(state.rootEditingDoctorO, st, b => !b)) }
@@ -57,7 +62,7 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
                             editingConditions = {medical.editingConditions}
                             onConditionsEdit={(cs) => this.modState(st => state.rootConditionsO.setOptional(st, cs))}
                             toggleEditingConditions={() => this.modState(st => modOptional(state.rootEditingConditionsO, st, b => !b)) }
-                            
+                            toggleEditingName = {() => this.modState(st => modOptional(state.rootEditingNameO, st, b => !b))}
                             />
                             <button className="primary large" onClick={() => this.persistMedical(auth, medical)}>Save</button>
                            
@@ -68,7 +73,7 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
                         <FeelingToday 
                             selected={this.state.currentFeeling}
                             currentDate={new Date()}
-                            onChange={(f) => this.modState(s => state.rootCurrentFeelingO.setOptional(s, f))}
+                            onChange={this.setStateO(state.rootCurrentFeelingO)}
                             onSave={() => {
                                 this.saveFeelingToLog(loggedIn);
                                 this.modState(s => state.rootCurrentTabO.setOptional(s, state.CurrentTab.CovidDiary))
@@ -77,8 +82,31 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
                     case state.CurrentTab.CovidDiary:
                         mainScreen = <CovidDiary diary={loggedIn.covidDiary}/>
                         break;
+                    case state.CurrentTab.Invite:
+                        mainScreen = <Invite 
+                            currentInvitation={loggedIn.sentInvite}
+                            newInviteName={loggedIn.newInviteName}
+                            onChangeNewInviteName={this.setStateO(state.rootNewInviteNameO)}
+                            
+                            acceptInvite={loggedIn.acceptInvite}
+                            onChangeAcceptInvite={this.setStateO(state.rootCurrentInviteO)}
+                            
+                            onInvite={() => this.onInvite(loggedIn.authData, loggedIn.newInviteName)}
+                            
+                            onAcceptInvite={() => this.onAcceptInvite(loggedIn.authData, loggedIn.acceptInvite)}
+                            
+                        /> 
+                        break;   
                     case state.CurrentTab.Sharing:
-                        mainScreen = <Share userId="tin"/> 
+                        {
+                        mainScreen = <Sharing 
+                            connections={loggedIn.connections} 
+                            sharedWithMe={loggedIn.sharedWithMe}
+                            sharedWithThem={loggedIn.sharedWithThem}
+                            myUserId={loggedIn.user.user.id}
+                            onShare={c => this.onShare(loggedIn.authData, c, loggedIn.medical.itemId)}
+                            />
+                        }
                         break;   
                 }
     
@@ -108,6 +136,30 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
                     onLoginClicked={() => this.doLogin(secret, passphrase)}/>
             }
         }
+    }
+
+    async onShare(authData: AuthData, c: state.ConnectionWithName, medicalInfoShareableId: string) {
+        const shareService = new ShareService(this.env, logger)
+        let sharedItem = await shareService.shareItem(
+            authData,
+            c.connection.id,
+            medicalInfoShareableId
+        )
+        console.log(sharedItem)
+    }
+
+    async onAcceptInvite(authData: AuthData, acceptInvite: {name: string, token: string}) {
+        const connectionService = new ConnectionService(this.env, logger)
+        const connection =  await connectionService.acceptInvitation(acceptInvite.name, acceptInvite.token, authData);
+        console.log('created connection', connection);
+    }
+
+    async onInvite(authData: AuthData, name: string): Promise<void> {
+        const connectionService = new ConnectionService(this.env, logger)
+        let invitation = await connectionService.createInvitation(name, authData)
+    
+        this.setStateO(ol(state.rootLoggedInO, state.loggedInSentInviteL))(invitation)
+        console.log('invite sent', invitation)
     }
 
     async saveFeelingToLog(lis: state.LoggedIn): Promise<void> {
@@ -163,6 +215,10 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
        this.setState((oldState) => fn(oldState))
     }
 
+    setStateO<V>(o: Optional<state.AppState, V>): (newValue: V) => void {
+        return (newValue) => this.setState(oldState => o.setOptional(oldState, newValue))
+    }
+
     async doLogin(secret: string, passphrase: string) {
         this.setState(state.loggingInState());
         const usersService = new UserService(this.env, logger);
@@ -194,11 +250,44 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
     }
 
     async loadData(authData: AuthData): Promise<void> {
+        let shareService = new ShareService(this.env)
+        let user = await this.loadUser(authData)
+        let connections = await this.loadConnections(authData);
+        let shares = await this.loadShares(authData)
+
+        console.log('got shares', shares)
+
         let medical = await this.loadMedical(authData)
         console.log('final medical', medical)
         let diary = await this.loadDiary(authData)
         console.log('final diary', diary)
-        this.setState(state.initialLoggedInState(authData, medical, diary))
+
+        let swm: Record<state.ConnectionId, state.MedicalInformation> = {}
+        let swt: state.ConnectionId[] = []
+
+        for(let c of connections) {
+            let withMe = sharedWithMe(c, shares, user.user.id)
+            console.log('withMe', withMe)
+            if (withMe) {
+                let item = await shareService.getSharedItem(authData, withMe.id)
+                console.log('item', item)
+                let medical = meeco.loadMedicalInfo(item.item.id, item.slots)
+                console.log('medical', medical)
+                swm[c.connection.id] = medical
+            }
+            let withOthers = sharedWithThem(c, shares)
+            if (withOthers) {
+                swt.push(c.connection.id)
+            }
+        }
+
+        this.setState(state.initialLoggedInState(authData, user, medical, diary, connections, swm, swt))
+    }
+    
+    async loadShares(authData: AuthData): Promise<Share[]> {
+        let shareService = new ShareService(this.env)
+        let allShares = await shareService.listShares(authData);
+        return allShares.shares;
     }
 
     async loadMedical(authData: AuthData): Promise<state.MedicalInformation | null> {
@@ -208,13 +297,26 @@ export class App extends Component<{env: Environment, savedAuthData? : AuthData}
         if (latestItem) {
             let actualItem = await itemService.get(latestItem.id, authData.vault_access_token, authData.data_encryption_key)
             console.log('loadMedical', 'Actual Item', actualItem);
-            const medInfo = meeco.loadMedicalInfo(actualItem.slots)
+            const medInfo = meeco.loadMedicalInfo(actualItem.item.id, actualItem.slots)
             return medInfo;
         } else {
             console.log('loadMedical', 'returning null');
             return null;
         }
     }
+
+    async loadConnections(authData: AuthData): Promise<state.ConnectionWithName[]> {
+        const connectionService = new ConnectionService(this.env, logger)
+        let connections = await connectionService.listConnections(authData)
+        console.log('connections', connections)
+        return connections as state.ConnectionWithName[];
+    }
+
+    async loadUser(authData: AuthData): Promise<MeResponse> {
+        const userService = new UserService(this.env, logger)
+        return userService.getVaultUser(authData.vault_access_token)
+    }
+    
 
     async loadDiary(authData: AuthData): Promise<state.CovidDiary | null> {
         const itemService = new ItemService(this.env, logger);
@@ -251,3 +353,11 @@ function maxBy<A>(arr: A[], compareBy: (a: A) => string): A | undefined {
 }
 
 const logger: (msg: string) => void = (msg) => console.log(msg)
+
+function sharedWithMe(c: state.ConnectionWithName, shares: Share[], myId: string): Share | undefined {
+    return shares.find(s => s.connection_id === c.connection.id && s.recipient_id === myId)
+}   
+
+function sharedWithThem(c: state.ConnectionWithName, shares: Share[]): Share | undefined {
+    return shares.find(s => s.connection_id === c.connection.id && s.recipient_id === c.connection.user_id)
+}   

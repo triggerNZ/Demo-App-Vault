@@ -1,5 +1,6 @@
 import {Lens, ol, Optional} from './lens';
 import { AuthData } from '@meeco/sdk';
+import {Invitation, Share, Connection, MeResponse} from '@meeco/vault-api-sdk'
 
 export type AppState = NotLoggedIn | LoadingData | LoggingIn | LoggedIn;
 
@@ -18,16 +19,29 @@ export enum CurrentTab {
     Medical,
     FeelingToday,
     CovidDiary,
+    Invite,
     Sharing
+}
+
+export interface AcceptInvite {
+    name: string;
+    token: string;
 }
 
 export interface LoggedIn {
     kind: "logged-in";
     medical: MedicalInformationState;
-    authData: AuthData,
-    currentTab: CurrentTab,
-    currentFeeling?: CurrentFeeling,
-    covidDiary: CovidDiary
+    authData: AuthData;
+    user: MeResponse,
+    connections: ConnectionWithName[];
+    sharedWithMe: Record<ConnectionId, MedicalInformation>;
+    sharedWithThem: ConnectionId[],
+    currentTab: CurrentTab;
+    currentFeeling?: CurrentFeeling;
+    covidDiary: CovidDiary;
+    newInviteName: string;
+    acceptInvite: AcceptInvite,
+    sentInvite?: Invitation
 };
 
 export type CovidDiary = 
@@ -43,6 +57,8 @@ export interface LoadingData {
 }
 
 export interface MedicalInformation {
+    itemId?: string;
+    name: string;
     conditions: Condition[];
     medications: Medication[];
     doctorContact: DoctorContact;
@@ -54,12 +70,18 @@ export type MedicalInformationState = MedicalInformation & {
     editingDoctor: boolean,
     editingPersonal: boolean,
     editingMedications: boolean,
-    editingConditions: boolean
+    editingConditions: boolean,
+    editingName: boolean
 }
 
 export type Condition  = string & {readonly __tag: unique symbol}
 export type Medication = string & {readonly __tag: unique symbol}
 export type Phone      = string & {readonly __tag: unique symbol}
+
+export interface ConnectionWithName {
+    name: string;
+    connection: Connection;
+}
 
 export type Contact = DoctorContact | PersonalContact
 
@@ -136,6 +158,11 @@ export let stateDoctorContactL: Lens<MedicalInformationState, DoctorContact> = {
     set: (s, newContact) => ({...s, doctorContact: newContact})
 }
 
+export let stateNameL: Lens<MedicalInformationState, string> = {
+    get: (s) => s.name,
+    set: (s, newName) => ({...s, name: newName})
+}
+
 export let statePersonalContactL: Lens<MedicalInformationState, PersonalContact> = {
     get: (s) => s.personalContact,
     set: (s, newContact) => ({...s, personalContact: newContact})
@@ -200,6 +227,11 @@ export let editingConditionsL: Lens<MedicalInformationState, boolean> = {
     set: (s, ed) => ({...s, editingConditions: ed})
 }
 
+export let editingNameL: Lens<MedicalInformationState, boolean> = {
+    get: (s) => s.editingName,
+    set: (s, ed) => ({...s, editingName: ed})
+}
+
 export let rootLoggedInO: Optional<AppState, LoggedIn> = {
     get: (s) => {
         switch (s.kind) {
@@ -225,9 +257,24 @@ export let loggedInMedicalL: Lens<LoggedIn, MedicalInformationState> = {
     set: (s, m) => ({...s, medical: m})
 }
 
-export let loggedInCurrentTab: Lens<LoggedIn, CurrentTab> = {
+export let loggedInSentInviteL: Lens<LoggedIn, Invitation | undefined> = {
+    get: (s) => s.sentInvite,
+    set: (s, i) => ({...s, sentInvite: i})
+}
+
+export let loggedInCurrentTabL: Lens<LoggedIn, CurrentTab> = {
     get: (s) => s.currentTab,
     set: (s, t) => ({...s, currentTab: t})
+}
+
+export let loggedInNewInviteNameL: Lens<LoggedIn, string> = {
+    get: (s) => s.newInviteName,
+    set: (s, t) => ({...s, newInviteName: t})
+}
+
+export let loggedInAcceptInviteL: Lens<LoggedIn, AcceptInvite> = {
+    get: (s) => s.acceptInvite,
+    set: (s, t) => ({...s, acceptInvite: t})
 }
 
 export let loggedInCurrentFeeling: Lens<LoggedIn, CurrentFeeling> = {
@@ -235,11 +282,15 @@ export let loggedInCurrentFeeling: Lens<LoggedIn, CurrentFeeling> = {
     set: (s, f) => ({...s, currentFeeling: f})
 }
 
+export let rootNewInviteNameO = ol(rootLoggedInO, loggedInNewInviteNameL)
+export let rootCurrentInviteO = ol(rootLoggedInO, loggedInAcceptInviteL)
 export let rootMedicalO = ol(rootLoggedInO, loggedInMedicalL)
-export let rootCurrentTabO = ol(rootLoggedInO, loggedInCurrentTab)
+export let rootCurrentTabO = ol(rootLoggedInO, loggedInCurrentTabL)
 export let rootCurrentFeelingO = ol(rootLoggedInO, loggedInCurrentFeeling)
+export let rootNameO = ol(rootMedicalO, stateNameL);
 
 export let rootEditingConditionsO = ol(rootMedicalO, editingConditionsL)
+export let rootEditingNameO = ol(rootMedicalO, editingNameL)
 export let rootEditingMedicationsO = ol(rootMedicalO, editingMedicationsL)
 export let rootEditingDoctorO = ol(rootMedicalO, editingDoctorL)
 export let rootEditingPersonalO = ol(rootMedicalO, editingPersonalL)
@@ -270,23 +321,43 @@ export function loadingDataState(auth: AuthData): LoadingData {
     }
 }
 
-export function initialLoggedInState(authData: AuthData, med: MedicalInformation | undefined, diary: CovidDiary | undefined): LoggedIn {
+export function initialLoggedInState(
+    authData: AuthData, 
+    user: MeResponse,
+    med: MedicalInformation | undefined, 
+    diary: CovidDiary | undefined,
+    connections: ConnectionWithName[] | undefined,
+    sharedWithMe: Record<ConnectionId, MedicalInformation>,
+    sharedWithThem: ConnectionId[]
+    ): LoggedIn {
     return {
         kind: 'logged-in',
         authData,
+        user: user,
+        connections: connections || [],
+        sharedWithMe,
+        sharedWithThem,
         medical: {
             ...(med || blankMedInfo), 
             kind: 'medical-info',
             editingConditions: false, 
             editingDoctor: false, 
             editingMedications: false, 
-            editingPersonal: false},
+            editingPersonal: false,
+            editingName: false
+        },
         currentTab: CurrentTab.Medical,
-        covidDiary: diary || []
+        covidDiary: diary || [],
+        newInviteName: '',
+        acceptInvite: {
+            name: '',
+            token: ''
+        }
     };
 }
 
 export const blankMedInfo: MedicalInformation = {
+    name: "",
     conditions: [],
     medications: [],
     doctorContact: {
@@ -305,3 +376,5 @@ export const blankMedInfo: MedicalInformation = {
       relationship: ""
     }
   }
+
+  export type ConnectionId = string;
